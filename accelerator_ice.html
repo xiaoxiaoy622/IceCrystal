@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>冰晶加速 · 冰系</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e1a;--ice1:#a8d8ea;--ice2:#c8e6f5;--ice3:#e8f4fd;
+  --frost:#7ec8e3;--deep:#1a3a5c;--glow:rgba(168,216,234,0.4);
+}
+html,body{width:100%;min-height:100vh;background:var(--bg);color:var(--ice2);font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;overflow-x:hidden}
+
+/* ========== FROST PARTICLES ========== */
+.frost-particles{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.frost-particle{position:absolute;width:4px;height:4px;background:var(--ice1);border-radius:50%;opacity:0;animation:fall linear infinite}
+@keyframes fall{0%{opacity:0;transform:translateY(-10px)}10%{opacity:.5}90%{opacity:.5}100%{opacity:0;transform:translateY(100vh) rotate(360deg)}}
+
+/* ========== DEMO ========== */
+.demo-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 20px;position:relative;z-index:1}
+.demo-title{font-size:28px;color:var(--ice1);margin-bottom:32px;letter-spacing:6px;font-weight:900;text-shadow:0 0 20px var(--glow)}
+.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:600px;width:100%}
+.demo-card{background:rgba(168,216,234,0.04);border:1px solid rgba(126,200,227,0.15);border-radius:12px;padding:18px;text-align:center;position:relative}
+.demo-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--frost),transparent);border-radius:12px 12px 0 0}
+.demo-label{font-size:12px;color:rgba(168,216,234,0.4);margin-bottom:6px;letter-spacing:2px}
+#demo-clock{font-size:26px;color:var(--ice2);font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(168,216,234,0.3)}
+#counterVal{font-size:34px;color:var(--ice1);font-weight:900;text-shadow:0 0 12px var(--glow)}
+.progress-track{width:100%;height:8px;background:rgba(168,216,234,0.08);border-radius:4px;overflow:hidden;margin-top:4px}
+#demo-progress{height:100%;width:0%;background:linear-gradient(90deg,var(--frost),var(--ice3));border-radius:4px;transition:width 50ms linear;box-shadow:0 0 6px var(--glow)}
+.spinner-wrap{display:flex;justify-content:center;margin-top:4px}
+#demo-spinner{width:44px;height:44px;background:linear-gradient(135deg,var(--frost),var(--ice3));border:2px solid var(--ice1);border-radius:8px;will-change:transform;box-shadow:0 0 10px var(--glow)}
+
+/* ========== FLOATING STAMP ========== */
+#accel-stamp{
+  position:fixed;top:20px;left:20px;z-index:99999;
+  width:52px;height:52px;
+  background:linear-gradient(135deg,rgba(168,216,234,0.12),rgba(126,200,227,0.06));
+  border:1.5px solid rgba(168,216,234,0.3);
+  border-radius:12px;
+  color:var(--ice1);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:grab;user-select:none;
+  font-weight:900;line-height:1;
+  box-shadow:0 4px 14px rgba(90,164,201,0.15);
+  transition:all .3s ease;backdrop-filter:blur(8px);
+}
+#accel-stamp:hover{box-shadow:0 6px 20px rgba(90,164,201,0.3);transform:translateY(-1px)}
+#accel-stamp.dragging{cursor:grabbing}
+#accel-stamp .stamp-icon{font-size:18px;filter:drop-shadow(0 0 4px var(--glow))}
+#accel-stamp .stamp-speed{font-size:11px;color:var(--ice3);margin-top:1px}
+
+/* ========== PANEL ========== */
+#accel-panel{
+  position:fixed;top:80px;left:20px;z-index:99998;
+  width:180px;
+  visibility:hidden;opacity:0;
+  transform:translateY(-8px) scale(0.95);
+  transition:all .3s cubic-bezier(.4,0,.2,1);
+  pointer-events:none;
+}
+#accel-panel.open{visibility:visible;opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+
+.panel-body{
+  background:linear-gradient(180deg,rgba(16,24,42,0.96),rgba(10,14,26,0.98));
+  border:1px solid rgba(168,216,234,0.18);
+  border-radius:14px;padding:16px 14px;position:relative;
+  box-shadow:0 10px 36px rgba(0,0,0,0.5),0 0 1px rgba(168,216,234,0.2);
+  backdrop-filter:blur(12px);
+}
+.panel-body::before{
+  content:'';display:block;height:2px;
+  background:linear-gradient(90deg,transparent,var(--frost),transparent);
+  border-radius:14px 14px 0 0;margin:0 -14px 14px;
+}
+
+.panel-title{text-align:center;font-size:14px;font-weight:800;color:var(--ice1);letter-spacing:3px;margin-bottom:14px}
+
+/* Speed readout */
+.speed-readout{text-align:center;margin-bottom:14px;padding:10px 0;border-bottom:1px solid rgba(168,216,234,0.08)}
+.speed-readout .num{font-size:36px;font-weight:900;color:var(--ice3);font-family:'Courier New',monospace;text-shadow:0 0 16px var(--glow);line-height:1}
+.speed-readout .unit{font-size:11px;color:rgba(168,216,234,0.4);margin-top:2px}
+
+/* ========== VERTICAL ICE SLIDER ========== */
+.ice-slider-wrap{
+  display:flex;justify-content:center;margin-bottom:14px;
+  padding:10px 0;
+}
+.ice-slider-track{
+  position:relative;width:28px;height:180px;
+  background:rgba(168,216,234,0.06);
+  border:1px solid rgba(168,216,234,0.12);
+  border-radius:14px;overflow:visible;cursor:pointer;
+}
+/* Ice fill (grows from bottom) */
+.ice-fill{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(0deg,rgba(126,200,227,0.5),rgba(168,216,234,0.15));
+  border-radius:0 0 13px 13px;
+  transition:height .15s ease;
+  box-shadow:0 0 12px rgba(126,200,227,0.2);
+}
+/* Frost line marks */
+.ice-marks{position:absolute;inset:0;pointer-events:none}
+.ice-mark{
+  position:absolute;left:3px;right:3px;height:1px;
+  background:rgba(168,216,234,0.15);
+}
+/* Thumb */
+.ice-thumb{
+  position:absolute;left:50%;transform:translate(-50%,50%);
+  width:34px;height:12px;
+  background:linear-gradient(135deg,var(--frost),var(--ice3));
+  border:1.5px solid var(--ice2);
+  border-radius:6px;
+  box-shadow:0 0 10px var(--glow),0 2px 6px rgba(0,0,0,0.3);
+  cursor:grab;z-index:2;
+  transition:box-shadow .2s;
+}
+.ice-thumb:active{cursor:grabbing;box-shadow:0 0 18px var(--glow),0 2px 8px rgba(0,0,0,0.4)}
+/* Tooltip on thumb */
+.ice-thumb::after{
+  content:attr(data-val);position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);
+  font-size:11px;font-weight:700;color:var(--ice3);white-space:nowrap;
+  background:rgba(10,14,26,0.9);padding:2px 6px;border-radius:4px;
+  border:1px solid rgba(168,216,234,0.2);pointer-events:none;
+  opacity:0;transition:opacity .2s;
+}
+.ice-slider-track:hover .ice-thumb::after,
+.ice-thumb:active ~ .ice-thumb::after{opacity:1}
+
+/* ========== PRESET BUTTONS ========== */
+.preset-row{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;
+}
+.preset-btn{
+  height:30px;border:1px solid rgba(168,216,234,0.12);
+  background:rgba(168,216,234,0.04);
+  color:var(--ice2);font-size:11px;font-weight:700;
+  cursor:pointer;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.preset-btn:hover{background:rgba(168,216,234,0.1);border-color:rgba(168,216,234,0.25)}
+.preset-btn.active{
+  background:linear-gradient(135deg,rgba(91,164,201,0.3),rgba(126,200,227,0.15));
+  border-color:var(--frost);color:var(--ice3);
+  box-shadow:0 0 10px rgba(126,200,227,0.2);
+}
+
+/* Bottom controls */
+.panel-bottom{display:flex;gap:6px}
+.ctrl-btn{
+  flex:1;height:32px;border:1px solid rgba(168,216,234,0.12);
+  background:rgba(168,216,234,0.04);color:var(--ice2);
+  font-size:11px;font-weight:600;cursor:pointer;border-radius:6px;
+  transition:all .15s;letter-spacing:1px;
+}
+.ctrl-btn:hover{background:rgba(168,216,234,0.1);border-color:rgba(168,216,234,0.25)}
+.ctrl-btn.on{background:rgba(91,164,201,0.2);border-color:var(--frost);color:var(--ice3)}
+
+.panel-close{
+  position:absolute;top:12px;right:10px;width:22px;height:22px;
+  border:1px solid rgba(168,216,234,0.15);background:rgba(168,216,234,0.04);
+  color:var(--ice1);font-size:13px;cursor:pointer;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.panel-close:hover{background:rgba(91,164,201,0.25);border-color:var(--frost)}
+</style>
+</head>
+<body>
+
+<div class="frost-particles" id="frostParticles"></div>
+
+<div class="demo-wrap">
+  <div class="demo-title">冰晶加速 · 演示</div>
+  <div class="demo-grid">
+    <div class="demo-card"><div class="demo-label">虚拟时钟</div><div id="demo-clock">00:00:00.000</div></div>
+    <div class="demo-card"><div class="demo-label">计数器 (每秒+1)</div><div id="counterVal">0</div></div>
+    <div class="demo-card"><div class="demo-label">进度条 (10秒循环)</div><div class="progress-track"><div id="demo-progress"></div></div></div>
+    <div class="demo-card"><div class="demo-label">旋转冰晶</div><div class="spinner-wrap"><div id="demo-spinner"></div></div></div>
+  </div>
+</div>
+
+<div id="accel-stamp" title="点击展开 · 拖拽移动">
+  <span class="stamp-icon">❄</span>
+  <span class="stamp-speed" id="stamp-speed">1x</span>
+</div>
+
+<div id="accel-panel">
+  <div class="panel-body">
+    <button class="panel-close" id="panel-close" title="关闭">×</button>
+    <div class="panel-title">冰晶加速</div>
+    <div class="speed-readout">
+      <div class="num" id="speed-num">1</div>
+      <div class="unit">倍速</div>
+    </div>
+    <div class="ice-slider-wrap">
+      <div class="ice-slider-track" id="ice-track">
+        <div class="ice-fill" id="ice-fill"></div>
+        <div class="ice-marks" id="ice-marks"></div>
+        <div class="ice-thumb" id="ice-thumb" data-val="1x"></div>
+      </div>
+    </div>
+    <div class="preset-row" id="preset-row"></div>
+    <div class="panel-bottom">
+      <button class="ctrl-btn" id="btn-persist">持久</button>
+      <button class="ctrl-btn" id="btn-reset">归一</button>
+    </div>
+  </div>
+</div>
+
+<!-- CORE -->
+<script>
+(function(){'use strict';var _origSetTimeout=window.setTimeout,_origClearTimeout=window.clearTimeout,_origSetInterval=window.setInterval,_origClearInterval=window.clearInterval,_origDate=window.Date,_origDateNow=_origDate.now.bind?_origDate.now.bind(_origDate):function(){return _origDate.now()},_origDateParse=_origDate.parse,_origDateUTC=_origDate.UTC,_percentage=1,_timeoutIds={},_intervalIds={},_autoUniqueId=1,_hooksInstalled=false,_lastRealTime=_origDateNow(),_lastVirtualTime=_origDateNow();function genUniqueId(){return _autoUniqueId++}function notifyExec(u){if(!u)return;var k=Object.keys(_timeoutIds);for(var i=0;i<k.length;i++){var inf=_timeoutIds[k[i]];if(inf.uniqueId===u){_origClearTimeout.call(window,inf.nowId);delete _timeoutIds[inf.originId]}}}function hookedSetTimeout(){var u=genUniqueId(),cb=arguments[0];if(typeof cb==='function'){var _cb=cb;arguments[0]=function(){var r=_cb.apply(this,arguments);notifyExec(u);return r}}var ms=arguments[1];arguments[1]=(ms||0)*_percentage;var rid=_origSetTimeout.apply(window,arguments);_timeoutIds[rid]={args:arguments,originMS:ms,originId:rid,nowId:rid,uniqueId:u,oldPercentage:_percentage,exceptNextFireTime:_origDateNow()+(ms||0)};return rid}function hookedSetInterval(){var u=genUniqueId(),cb=arguments[0];if(typeof cb==='function'){var _cb=cb;arguments[0]=function(){var r=_cb.apply(this,arguments);notifyExec(u);return r}}var ms=arguments[1];arguments[1]=(ms||0)*_percentage;var rid=_origSetInterval.apply(window,arguments);_intervalIds[rid]={args:arguments,originMS:ms,originId:rid,nowId:rid,uniqueId:u,oldPercentage:_percentage,exceptNextFireTime:_origDateNow()+(ms||0)};return rid}function hookedClearTimeout(){var id=arguments[0];if(_timeoutIds[id]){arguments[0]=_timeoutIds[id].nowId;delete _timeoutIds[id]}return _origClearTimeout.apply(window,arguments)}function hookedClearInterval(){var id=arguments[0];if(_intervalIds[id]){arguments[0]=_intervalIds[id].nowId;delete _intervalIds[id]}return _origClearInterval.apply(window,arguments)}function percentageChangeHandler(np){var ik=Object.keys(_intervalIds);for(var i=0;i<ik.length;i++){var o=_intervalIds[ik[i]];o.args[1]=Math.floor((o.originMS||1)*np);_origClearInterval.call(window,o.nowId);o.nowId=_origSetInterval.apply(window,o.args)}var tk=Object.keys(_timeoutIds);for(var j=0;j<tk.length;j++){var o2=_timeoutIds[tk[j]];var now=_origDateNow(),et=o2.exceptNextFireTime,op=o2.oldPercentage,t=et-now;if(t<0)t=0;var ct=Math.floor(np/op*t);o2.args[1]=ct;o2.exceptNextFireTime=now+ct;o2.oldPercentage=np;_origClearTimeout.call(window,o2.nowId);o2.nowId=_origSetTimeout.apply(window,o2.args)}}function _HookedDate(){var n=arguments.length;if(n===0)return new _origDate(Date.now());if(n===1)return new _origDate(arguments[0]);if(n===2)return new _origDate(arguments[0],arguments[1]);if(n===3)return new _origDate(arguments[0],arguments[1],arguments[2]);if(n===4)return new _origDate(arguments[0],arguments[1],arguments[2],arguments[3]);if(n===5)return new _origDate(arguments[0],arguments[1],arguments[2],arguments[3],arguments[4]);if(n===6)return new _origDate(arguments[0],arguments[1],arguments[2],arguments[3],arguments[4],arguments[5]);return new _origDate(arguments[0],arguments[1],arguments[2],arguments[3],arguments[4],arguments[5],arguments[6])}_HookedDate.prototype=_origDate.prototype;function _hookedDateNow(){var realNow=_origDateNow();return _lastVirtualTime+(realNow-_lastRealTime)*(1/_percentage)}function installHooks(){if(_hooksInstalled)return;_hooksInstalled=true;window.setTimeout=hookedSetTimeout;window.setInterval=hookedSetInterval;window.clearTimeout=hookedClearTimeout;window.clearInterval=hookedClearInterval;window.Date=_HookedDate;_HookedDate.now=_hookedDateNow;_HookedDate.parse=_origDateParse;_HookedDate.UTC=_origDateUTC}function removeHooks(){if(!_hooksInstalled)return;_hooksInstalled=false;window.setTimeout=_origSetTimeout;window.setInterval=_origSetInterval;window.clearTimeout=_origClearTimeout;window.clearInterval=_origClearInterval;window.Date=_origDate;_intervalIds={};_timeoutIds={}}function _applySpeed(speed){if(speed===1){var realNow=_origDateNow();_lastVirtualTime=realNow;_lastRealTime=realNow;_percentage=1;removeHooks();return}installHooks();var realNow=_origDateNow();_lastVirtualTime=_lastVirtualTime+(realNow-_lastRealTime)*(1/_percentage);_lastRealTime=realNow;var np=1/speed;percentageChangeHandler(np);_percentage=np}window.$hookTimer={setSpeed:function(spd){if(typeof spd!=='number'||spd<=0)return;_applySpeed(spd)},getSpeed:function(){return 1/_percentage},getPercentage:function(){return _percentage}}})();
+</script>
+
+<!-- DEMO -->
+<script>
+(function(){var c=document.getElementById('demo-clock'),cv=document.getElementById('counterVal'),p=document.getElementById('demo-progress'),s=document.getElementById('demo-spinner'),cnt=0,st=Date.now(),rot=0;function uc(){var n=Date.now(),d=new Date(n);c.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')+'.'+String(d.getMilliseconds()).padStart(3,'0');requestAnimationFrame(uc)}uc();setInterval(function(){cnt++;cv.textContent=cnt},1000);setInterval(function(){var e=(Date.now()-st)/1000;p.style.width=((e%10)/10*100)+'%'},50);setInterval(function(){rot+=3;s.style.transform='rotate('+rot+'deg)'},16)})();
+</script>
+
+<!-- UI -->
+<script>
+(function(){
+  var PRESETS = [0.5, 1, 2, 5, 10, 50];
+  var MIN = 0.1, MAX = 200;
+  var STORAGE_KEY = 'accel_ice_speed';
+  var PERSIST_KEY = 'accel_ice_persist';
+
+  var stamp = document.getElementById('accel-stamp');
+  var panel = document.getElementById('accel-panel');
+  var stampSpeed = document.getElementById('stamp-speed');
+  var speedNum = document.getElementById('speed-num');
+  var track = document.getElementById('ice-track');
+  var fill = document.getElementById('ice-fill');
+  var thumb = document.getElementById('ice-thumb');
+  var presetRow = document.getElementById('preset-row');
+  var btnPersist = document.getElementById('btn-persist');
+  var btnReset = document.getElementById('btn-reset');
+  var panelClose = document.getElementById('panel-close');
+
+  var panelOpen = false;
+  var currentSpeed = 1;
+  var persisted = localStorage.getItem(PERSIST_KEY) === 'true';
+
+  // Logarithmic mapping: position (0~1) <-> speed (MIN~MAX)
+  var logMin = Math.log(MIN), logMax = Math.log(MAX);
+  function speedToPos(s){ return (Math.log(s) - logMin) / (logMax - logMin); }
+  function posToSpeed(p){ return Math.exp(logMin + p * (logMax - logMin)); }
+  function snapToPreset(s){
+    for(var i=0;i<PRESETS.length;i++){
+      if(Math.abs(PRESETS[i]-s)/s < 0.08) return PRESETS[i];
+    }
+    return Math.round(s*100)/100;
+  }
+
+  // Build preset buttons
+  PRESETS.forEach(function(spd){
+    var b = document.createElement('button');
+    b.className = 'preset-btn';
+    b.textContent = spd + 'x';
+    b.dataset.speed = spd;
+    b.addEventListener('click', function(){ setSpeed(spd); });
+    presetRow.appendChild(b);
+  });
+
+  // Build tick marks on track
+  (function(){
+    var marks = document.getElementById('ice-marks');
+    var ticks = [0.1,0.5,1,2,5,10,20,50,100,200];
+    ticks.forEach(function(v){
+      var pct = (1 - speedToPos(v)) * 100;
+      var m = document.createElement('div');
+      m.className = 'ice-mark';
+      m.style.bottom = pct + '%';
+      marks.appendChild(m);
+    });
+  })();
+
+  function setSpeed(spd){
+    currentSpeed = spd;
+    window.$hookTimer.setSpeed(spd);
+    updateUI();
+    if(persisted) localStorage.setItem(STORAGE_KEY, spd);
+  }
+
+  function updateUI(){
+    var label = currentSpeed >= 10 ? Math.round(currentSpeed) : (Math.round(currentSpeed*10)/10);
+    stampSpeed.textContent = label + 'x';
+    speedNum.textContent = label;
+
+    // Slider position
+    var pos = speedToPos(currentSpeed);
+    var pct = pos * 100;
+    fill.style.height = pct + '%';
+    thumb.style.bottom = pct + '%';
+    thumb.setAttribute('data-val', label + 'x');
+
+    // Presets
+    var btns = presetRow.querySelectorAll('.preset-btn');
+    for(var i=0;i<btns.length;i++){
+      var b = btns[i];
+      b.classList.toggle('active', Math.abs(parseFloat(b.dataset.speed) - currentSpeed) < 0.01);
+    }
+
+    // Persist
+    btnPersist.classList.toggle('on', persisted);
+    btnPersist.textContent = persisted ? '已持' : '持久';
+  }
+
+  // --- Slider drag ---
+  (function(){
+    var dragging = false;
+    function getPos(e){
+      var rect = track.getBoundingClientRect();
+      var ev = e.touches ? e.touches[0] : e;
+      var y = rect.bottom - ev.clientY;
+      return Math.max(0, Math.min(1, y / rect.height));
+    }
+    function onDown(e){
+      dragging = true;
+      var p = getPos(e);
+      setSpeed(snapToPreset(posToSpeed(p)));
+      e.preventDefault();
+    }
+    function onMove(e){
+      if(!dragging) return;
+      var p = getPos(e);
+      setSpeed(snapToPreset(posToSpeed(p)));
+      e.preventDefault();
+    }
+    function onUp(){ dragging = false; }
+    thumb.addEventListener('mousedown', onDown);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    thumb.addEventListener('touchstart', onDown, {passive:false});
+    document.addEventListener('touchmove', onMove, {passive:false});
+    document.addEventListener('touchend', onUp);
+    track.addEventListener('mousedown', onDown);
+    track.addEventListener('touchstart', onDown, {passive:false});
+  })();
+
+  // Panel toggle
+  function togglePanel(open){
+    panelOpen = typeof open === 'boolean' ? open : !panelOpen;
+    panel.classList.toggle('open', panelOpen);
+  }
+  stamp.addEventListener('click', function(e){
+    if(stamp._dragged){ stamp._dragged = false; return; }
+    togglePanel();
+  });
+  panelClose.addEventListener('click', function(){ togglePanel(false); });
+
+  // Persist
+  btnPersist.addEventListener('click', function(){
+    persisted = !persisted;
+    if(persisted){ localStorage.setItem(PERSIST_KEY,'true'); localStorage.setItem(STORAGE_KEY,currentSpeed); }
+    else{ localStorage.setItem(PERSIST_KEY,'false'); localStorage.removeItem(STORAGE_KEY); }
+    updateUI();
+  });
+  btnReset.addEventListener('click', function(){ setSpeed(1); });
+
+  // Keyboard
+  document.addEventListener('keydown', function(e){
+    if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+    if(e.key==='['||e.key==='【'){
+      var idx=PRESETS.indexOf(currentSpeed); if(idx<0) idx=PRESETS.indexOf(1);
+      if(idx>0) setSpeed(PRESETS[idx-1]);
+    }else if(e.key===']'||e.key==='】'){
+      var idx2=PRESETS.indexOf(currentSpeed); if(idx2<0) idx2=PRESETS.indexOf(1);
+      if(idx2<PRESETS.length-1) setSpeed(PRESETS[idx2+1]);
+    }else if(e.key==='0'){ setSpeed(1); }
+    else if(e.key==='p'||e.key==='P'){ btnPersist.click(); }
+    else if(e.key==='Escape'){ togglePanel(false); }
+  });
+
+  // Drag stamp
+  (function(){
+    var dragging=false, startX, startY, origLeft, origTop, moved=false;
+    function onDown(e){
+      dragging=true; moved=false;
+      var ev=e.touches?e.touches[0]:e; startX=ev.clientX; startY=ev.clientY;
+      var r=stamp.getBoundingClientRect(); origLeft=r.left; origTop=r.top;
+      stamp.classList.add('dragging'); e.preventDefault();
+    }
+    function onMove(e){
+      if(!dragging)return;
+      var ev=e.touches?e.touches[0]:e;
+      var dx=ev.clientX-startX, dy=ev.clientY-startY;
+      if(Math.abs(dx)>3||Math.abs(dy)>3) moved=true;
+      stamp.style.left=Math.max(0,Math.min(window.innerWidth-52,origLeft+dx))+'px';
+      stamp.style.top=Math.max(0,Math.min(window.innerHeight-52,origTop+dy))+'px';
+      panel.style.left=stamp.style.left;
+      panel.style.top=(parseInt(stamp.style.top)+60)+'px';
+    }
+    function onUp(){if(!dragging)return;dragging=false;stamp.classList.remove('dragging');stamp._dragged=moved;}
+    stamp.addEventListener('mousedown',onDown);document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
+    stamp.addEventListener('touchstart',onDown,{passive:false});document.addEventListener('touchmove',onMove,{passive:false});document.addEventListener('touchend',onUp);
+  })();
+
+  // Frost particles
+  (function(){
+    var c=document.getElementById('frostParticles');
+    for(var i=0;i<25;i++){
+      var p=document.createElement('div');p.className='frost-particle';
+      p.style.left=Math.random()*100+'%';p.style.animationDuration=(5+Math.random()*8)+'s';
+      p.style.animationDelay=Math.random()*10+'s';p.style.width=p.style.height=(2+Math.random()*3)+'px';
+      c.appendChild(p);
+    }
+  })();
+
+  // Init
+  if(persisted){var saved=parseFloat(localStorage.getItem(STORAGE_KEY));if(saved&&saved>0){currentSpeed=saved;window.$hookTimer.setSpeed(saved);}}
+  updateUI();
+})();
+</script>
+</body>
+</html>
