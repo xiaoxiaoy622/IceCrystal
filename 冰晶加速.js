@@ -494,7 +494,7 @@
                 _sx = t.clientX; _sy = t.clientY;
                 _iceOffX = el.offsetLeft; _iceOffY = el.offsetTop;
                 el.classList.add('dragging');
-                e.preventDefault();
+                if (!e.touches) e.preventDefault();
             }
             function _onMove(e) {
                 if (!_dragging || _sx === null) return;
